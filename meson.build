@@ -9,10 +9,6 @@ project_source_files = [
   'src/main.cpp',
 ]
 
-project_server_source_files = [
-  'src/server.cpp',
-]
-
 public_headers = include_directories('include')
 
 depnames = [
@@ -49,11 +45,4 @@ project_target = executable(
   include_directories : public_headers,
 )
 
-project_server_target = executable(
-  meson.project_name() + '-server',
-  project_server_source_files,
-  dependencies: project_dependencies,
-  install : true,
-  cpp_args : build_args,
-  include_directories : public_headers,
-)
+subdir('tests')
