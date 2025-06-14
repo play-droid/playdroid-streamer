@@ -19,10 +19,10 @@
 #define LIVE_PORT 1111
 #define LIVE_HOST "127.0.0.1"
 
-char *SOCKET_PATH = "/tmp/playdroid_socket";
+const char *SOCKET_PATH = "/tmp/playdroid_socket";
 
 struct display {
-    char *socket_path;
+    const char *socket_path;
     int port;
 
     GstAllocator *allocator;
@@ -165,9 +165,7 @@ static int gst_output_frame(struct display *display) {
 
     struct timespec current_frame_ts;
     GstClockTime ts, current_frame_time;
-    static GstClockTime timestamp = 0;
 
-    // gsize offset = display->offset;
     gsize offset[GST_VIDEO_MAX_PLANES] = {
         0,
     };
@@ -188,16 +186,21 @@ static int gst_output_frame(struct display *display) {
                                    offset,
                                    stride);
 
-    GST_BUFFER_PTS(buf) = timestamp;
-    GST_BUFFER_DURATION(buf) = gst_util_uint64_scale_int(1, GST_SECOND, 4);
+    clock_gettime(CLOCK_REALTIME, &current_frame_ts);
 
-    timestamp += GST_BUFFER_DURATION(buf);
+    current_frame_time = GST_TIMESPEC_TO_TIME(current_frame_ts);
+    if (display->start_time == 0)
+        display->start_time = current_frame_time;
+    ts = current_frame_time - display->start_time;
 
-    // fprintf(stderr, "remoting_output_frame: buffer %p, fd %d, stride %d, offset %zu\n",
-    //			   buf, display->dmabuf_fds[0], display->strides[0], display->offsets[0]);
+    if (GST_CLOCK_TIME_IS_VALID(ts)) {
+        GST_BUFFER_PTS(buf) = ts;
+
+    } else
+        GST_BUFFER_PTS(buf) = GST_CLOCK_TIME_NONE;
+    GST_BUFFER_DURATION(buf) = GST_CLOCK_TIME_NONE;
+
     int ret = gst_app_src_push_buffer((GstAppSrc *)display->appsrc, buf);
-    // fprintf(stderr, "remoting_output_frame: buffer fd %d vs img %d \n", display->dmabuf_fds[0], texture_dmabuf_fd);
-
     if (ret != GST_FLOW_OK) {
         /* something wrong, stop pushing */
         fprintf(stderr, "Error: gst_app_src_push_buffer failed: %d\n", ret);
