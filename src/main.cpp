@@ -206,15 +206,16 @@ static int gst_output_frame(struct display *display) {
 static void print_usage_and_exit(void) {
     printf("usage flags:\n"
            "\t'-w,--width=<>'"
-           "\n\t\twidth of screen\n"
+           "\n\t\twidth of screen, default is %d\n"
            "\t'-y,--height=<>'"
-           "\n\t\theight of screen\n"
+           "\n\t\theight of screen, default is %d\n"
            "\t'-r,--refresh-rate=<>'"
-           "\n\t\trefresh rate of display\n"
+           "\n\t\trefresh rate of display, default is %d\n"
            "\t'-l,--live'"
            "\n\t\tShould live stream to rstp\n"
            "\t'-p,--port=<>'"
-           "\n\t\tport to stream to, default is %d\n", LIVE_PORT);
+           "\n\t\tport to stream to, default is %d\n",
+           DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_REFRESH_RATE, LIVE_PORT);
     exit(0);
 }
 
