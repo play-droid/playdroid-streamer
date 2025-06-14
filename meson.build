@@ -6,12 +6,17 @@ project(
 )
 
 project_source_files = [
-  'src/main.cpp'
+  'src/main.cpp',
+]
+
+project_server_source_files = [
+  'src/server.cpp',
 ]
 
 public_headers = include_directories('include')
 
 depnames = [
+  'egl',
   'gstreamer-1.0', 'gstreamer-allocators-1.0',
   'gstreamer-app-1.0', 'gstreamer-video-1.0',
   'gobject-2.0', 'glib-2.0'
@@ -39,6 +44,15 @@ build_args += [
 project_target = executable(
   meson.project_name(),
   project_source_files,
+  dependencies: project_dependencies,
+  install : true,
+  cpp_args : build_args,
+  include_directories : public_headers,
+)
+
+project_server_target = executable(
+  meson.project_name() + '-server',
+  project_server_source_files,
   dependencies: project_dependencies,
   install : true,
   cpp_args : build_args,

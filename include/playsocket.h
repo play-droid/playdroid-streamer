@@ -8,6 +8,12 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
+#define EGL_EGLEXT_PROTOTYPES
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+
+#define SOCKET_PATH "/tmp/test_server"
+
 enum MessageType {
     MSG_FAILED,
     MSG_TYPE_DATA,
@@ -21,35 +27,62 @@ struct MessageHeader {
     uint32_t length; // length of the payload (excluding header)
 };
 
-int create_socket(const char *path)
-{
+enum DataType {
+    MSG_HELLO,
+    MSG_ASK_FOR_RESOLUTION,
+    MSG_HAVE_RESOLUTION,
+    MSG_HAVE_BUFFER
+};
+
+struct MessageData {
+	DataType type;
+	int width;
+	int height;
+	int refresh_rate;
+
+    int format;
+    EGLuint64KHR modifiers;
+    EGLint stride;
+    EGLint offset;
+};
+
+int create_socket() {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     struct sockaddr_un addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, path);
-	unlink(path);
-	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-	{
+	strcpy(addr.sun_path, SOCKET_PATH);
+	unlink(SOCKET_PATH);
+	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		exit(-1);
 	}
+    listen(sock, 1);
+
+    return accept(sock, NULL, NULL);
+}
+
+int connect_socket() {
+    struct sockaddr_un addr;
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_UNIX;
+	strcpy(addr.sun_path, SOCKET_PATH);
+	connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 
 	return sock;
 }
 
-int connect_socket(int sock, const char *path)
-{
-	struct sockaddr_un addr;
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, path);
-	return connect(sock, (struct sockaddr *)&addr, sizeof(addr));
-}
-
-int send_message(int sock, int fd, MessageType type, void *payload, size_t payload_len) {
+int send_message(int sock, int fd, MessageType type, MessageData *payload) {
     struct msghdr msg;
 	memset(&msg, 0, sizeof(msg));
+
+	size_t payload_len = payload ? sizeof(MessageData) : 0;
+	if (payload && payload_len > sizeof(MessageData)) {
+		fprintf(stderr, "Payload length exceeds maximum size\n");
+		return -1;
+	}
 
     // Construct message header
     MessageHeader header = {(uint32_t)type, (uint32_t)payload_len};
@@ -89,10 +122,16 @@ int send_message(int sock, int fd, MessageType type, void *payload, size_t paylo
 	return 0;
 }
 
-int recv_message(int sock, int *fd_out, void *buffer, size_t buffer_size, size_t *out_data_len, MessageType* out_type) {
+int recv_message(int sock, int *fd_out, MessageData *buffer, MessageType* out_type) {
     struct msghdr msg;
     struct iovec io;
     char control_buf[256] = {0};
+
+    size_t buffer_size = buffer ? sizeof(MessageData) : 0;
+    if (buffer && buffer_size > sizeof(MessageData)) {
+		fprintf(stderr, "Payload length exceeds maximum size\n");
+		return -1;
+	}
 
     memset(&msg, 0, sizeof(msg));
 
@@ -108,10 +147,14 @@ int recv_message(int sock, int *fd_out, void *buffer, size_t buffer_size, size_t
     msg.msg_controllen = sizeof(control_buf);
 
     ssize_t n = recvmsg(sock, &msg, 0);
+	if (n == 0) {
+		*out_type = MSG_FAILED;
+		return 0; // Connection closed
+	}
     if (n < 0) {
         fprintf(stderr, "recvmsg failed\n");
         *out_type = MSG_FAILED;
-        return -1;
+        return n;
     }
 
     if ((uint32_t)n < sizeof(MessageHeader)) {
@@ -132,9 +175,6 @@ int recv_message(int sock, int *fd_out, void *buffer, size_t buffer_size, size_t
         memcpy(buffer, recv_buf.data() + sizeof(header), header.length);
     }
 
-    if (out_data_len)
-        *out_data_len = header.length;
-
     if (header.type == MSG_TYPE_FD && fd_out) {
         struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
         if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
@@ -145,5 +185,5 @@ int recv_message(int sock, int *fd_out, void *buffer, size_t buffer_size, size_t
     }
 
 	*out_type = (MessageType)header.type;
-    return 0;
+    return n;
 }
