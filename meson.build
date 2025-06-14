@@ -16,7 +16,6 @@ project_server_source_files = [
 public_headers = include_directories('include')
 
 depnames = [
-  'egl',
   'gstreamer-1.0', 'gstreamer-allocators-1.0',
   'gstreamer-app-1.0', 'gstreamer-video-1.0',
   'gobject-2.0', 'glib-2.0'

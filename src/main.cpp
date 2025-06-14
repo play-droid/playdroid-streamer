@@ -19,7 +19,10 @@
 #define LIVE_PORT 1111
 #define LIVE_HOST "127.0.0.1"
 
+char *SOCKET_PATH = "/tmp/playdroid_socket";
+
 struct display {
+    char *socket_path;
     int port;
 
     GstAllocator *allocator;
@@ -205,6 +208,8 @@ static int gst_output_frame(struct display *display) {
 
 static void print_usage_and_exit(void) {
     printf("usage flags:\n"
+           "\t'-s,--socket=<>'"
+           "\n\t\tsocket path, default is %s\n"
            "\t'-w,--width=<>'"
            "\n\t\twidth of screen, default is %d\n"
            "\t'-y,--height=<>'"
@@ -215,7 +220,7 @@ static void print_usage_and_exit(void) {
            "\n\t\tShould live stream to rstp\n"
            "\t'-p,--port=<>'"
            "\n\t\tport to stream to, default is %d\n",
-           DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_REFRESH_RATE, LIVE_PORT);
+           SOCKET_PATH, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_REFRESH_RATE, LIVE_PORT);
     exit(0);
 }
 
@@ -238,6 +243,7 @@ int main(int argc, char **argv) {
     if (display == NULL) {
         fprintf(stderr, "out of memory\n");
     }
+    display->socket_path = SOCKET_PATH;
     display->width = DISPLAY_WIDTH;
     display->height = DISPLAY_HEIGHT;
     display->refresh_rate = DISPLAY_REFRESH_RATE;
@@ -245,6 +251,7 @@ int main(int argc, char **argv) {
     display->port = LIVE_PORT;
 
     static struct option long_options[] = {
+        {"socket", required_argument, 0, 's'},
         {"width", required_argument, 0, 'w'},
         {"height", required_argument, 0, 'y'},
         {"refresh-rate", required_argument, 0, 'r'},
@@ -253,9 +260,16 @@ int main(int argc, char **argv) {
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
-    while ((c = getopt_long(argc, argv, "hw:y:r:p:l",
+    while ((c = getopt_long(argc, argv, "hs:w:y:r:p:l",
                             long_options, &option_index)) != -1) {
         switch (c) {
+        case 's':
+            display->socket_path = optarg;
+            if (display->socket_path == NULL || strlen(display->socket_path) == 0) {
+                fprintf(stderr, "Invalid socket path: %s\n", optarg);
+                exit(EXIT_FAILURE);
+            }
+            break;
         case 'w':
             display->width = strtol(optarg, NULL, 10);
             break;
@@ -282,7 +296,7 @@ int main(int argc, char **argv) {
 
     printf("This is project %s, version %s.\n", EXPAND_AND_QUOTE(PROJECT_NAME), EXPAND_AND_QUOTE(PROJECT_VERSION));
 
-    int sock = create_socket();
+    int sock = create_socket(display->socket_path);
     while (1) {
         MessageType type;
         struct MessageData message;
@@ -294,7 +308,7 @@ int main(int argc, char **argv) {
         if (ret == 0) {
             fprintf(stderr, "recv_message closed\n");
             close(sock);
-            sock = create_socket();
+            sock = create_socket(display->socket_path);
             continue;
         }
         switch (type) {

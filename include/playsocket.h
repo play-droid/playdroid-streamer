@@ -8,12 +8,6 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define EGL_EGLEXT_PROTOTYPES
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
-#define SOCKET_PATH "/tmp/test_server"
-
 enum MessageType {
     MSG_FAILED,
     MSG_TYPE_DATA,
@@ -41,20 +35,20 @@ struct MessageData {
 	int refresh_rate;
 
     int format;
-    EGLuint64KHR modifiers;
-    EGLint stride;
-    EGLint offset;
+    uint64_t modifiers;
+    int32_t stride;
+    int32_t offset;
 };
 
-int create_socket() {
+int create_socket(const char *path) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     struct sockaddr_un addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, SOCKET_PATH);
-	unlink(SOCKET_PATH);
-	if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    strcpy(addr.sun_path, path);
+    unlink(path);
+    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		exit(-1);
 	}
     listen(sock, 1);
@@ -62,14 +56,14 @@ int create_socket() {
     return accept(sock, NULL, NULL);
 }
 
-int connect_socket() {
+int connect_socket(const char *path) {
     struct sockaddr_un addr;
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, SOCKET_PATH);
-	connect(sock, (struct sockaddr *)&addr, sizeof(addr));
+    strcpy(addr.sun_path, path);
+    connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 
 	return sock;
 }
