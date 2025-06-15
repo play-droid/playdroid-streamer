@@ -5,8 +5,9 @@
 #include <playsocket.h>
 
 #include "render.h"
+#include <wayland-window.h>
 
-#define SOCKET_PATH "/tmp/playdroid_socket"
+#define SOCKET_PATH "/run/user/1000/playdroid_socket"
 
 // These extensions are usually loaded via eglGetProcAddress
 PFNEGLCREATEIMAGEKHRPROC eglCreateImageKHR = NULL;
@@ -108,9 +109,8 @@ int main(int argc, char **argv) {
     }
 
     // 9. Export to dma-buf
-    int dma_buf_fd;
     message.type = MSG_HAVE_BUFFER;
-
+    int dma_buf_fd;
     int num_planes;
     eglExportDMABUFImageQueryMESA(egl_display,
                                                        image,
@@ -118,6 +118,8 @@ int main(int argc, char **argv) {
                                                        &num_planes,
                                                        &message.modifiers);
 
+    fprintf(stderr, "Exporting DMA-BUF: format=%d, num_planes=%d, modifiers=0x%lx\n",
+           message.format, num_planes, message.modifiers);
     EGLBoolean ok = eglExportDMABUFImageMESA(egl_display, image, &dma_buf_fd, &message.stride, &message.offset);
     if (!ok) {
         fprintf(stderr, "Failed to export DMA-BUF\n");
@@ -125,6 +127,8 @@ int main(int argc, char **argv) {
     }
 
     printf("DMA-BUF exported: fd=%d stride=%d offset=%d\n", dma_buf_fd, message.stride, message.offset);
+    struct window_state *wayland_state = setup_wayland_window();
+    setup_window(wayland_state);
 
     while (1) {
         gl_draw_scene(tex);
@@ -132,10 +136,13 @@ int main(int argc, char **argv) {
         glBindTexture(GL_TEXTURE_2D, tex);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_DATA_WIDTH, TEXTURE_DATA_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, texture_data);
 
+        //draw_window(wayland_state, &message, dma_buf_fd);
+
         //fprintf(stderr, "Sending message with fd %d\n", dma_buf_fd);
         send_message(sock, dma_buf_fd, MSG_TYPE_FD, &message);
 
-        usleep(6000000 / message.refresh_rate); // Sleep to match refresh rate
+        //usleep(6000000 / (message.refresh_rate / 1000)); // Sleep to match refresh rate
+        sleep(1); // Sleep for 1 second for demonstration purposes
     }
 
     close(sock);
