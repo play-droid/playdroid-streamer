@@ -14,6 +14,8 @@ struct window_state {
     int width;
     int height;
     int running;
+    uint32_t *formats;
+    int formats_count;
 };
 
 struct window_state *setup_wayland_window();

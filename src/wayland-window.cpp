@@ -15,6 +15,26 @@
 #include <socket-protocol.h>
 #include <wayland-window.h>
 
+static void dmabuf_format(void *, struct zwp_linux_dmabuf_v1 *, uint32_t);
+static void dmabuf_modifiers(void *data, struct zwp_linux_dmabuf_v1 *dmabuf,
+                 uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
+    
+}
+
+static void dmabuf_format(void *data, struct zwp_linux_dmabuf_v1 *, uint32_t format) {
+    struct window_state *app_state = (struct window_state *)data;
+
+    ++app_state->formats_count;
+    app_state->formats = (uint32_t *)realloc(app_state->formats,
+                                             app_state->formats_count * sizeof(*app_state->formats));
+    app_state->formats[app_state->formats_count - 1] = format;
+}
+
+static const struct zwp_linux_dmabuf_v1_listener dmabuf_listener = {
+    dmabuf_format,
+    dmabuf_modifiers
+};
+
 // --- XDG Toplevel Listener ---
 static void xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *toplevel,
                                           int32_t width, int32_t height, struct wl_array *states) {
@@ -63,6 +83,7 @@ static void registry_handle_global(void *data, struct wl_registry *registry,
     } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0) {
         // We bind to version 3, which is common.
         app_state->linux_dmabuf = (zwp_linux_dmabuf_v1 *)wl_registry_bind(registry, name, &zwp_linux_dmabuf_v1_interface, 3);
+        zwp_linux_dmabuf_v1_add_listener(app_state->linux_dmabuf, &dmabuf_listener, app_state);
     }
 }
 
@@ -129,11 +150,43 @@ void setup_window(struct window_state *app_state) {
     wl_surface_commit(app_state->surface);
 }
 
+bool isFormatSupported(struct window_state *app_state, uint32_t format) {
+    for (int i = 0; i < app_state->formats_count; i++) {
+        if (format == app_state->formats[i])
+            return true;
+    }
+    return false;
+}
+
+int findFormat(uint32_t hal_format) {
+    switch (hal_format) {
+    case DRM_FORMAT_BGR888:
+        return DRM_FORMAT_RGB888;
+    case DRM_FORMAT_ARGB8888:
+        return DRM_FORMAT_ABGR8888;
+    case DRM_FORMAT_XBGR8888:
+        return DRM_FORMAT_XRGB8888;
+    case DRM_FORMAT_ABGR8888:
+        return DRM_FORMAT_ARGB8888;
+    case DRM_FORMAT_BGR565:
+        return DRM_FORMAT_RGB565;
+    case DRM_FORMAT_YVU420:
+        return DRM_FORMAT_GR88;
+    }
+    return DRM_FORMAT_XRGB8888;
+}
+
 int draw_window(struct window_state *app_state, struct MessageData *message, int dmabuf_fd) {
     app_state->width = message->width;
     app_state->height = message->height;
     uint32_t format = DRM_FORMAT_XRGB8888;
     uint32_t stride = message->stride;
+
+    if (isFormatSupported(app_state, message->format)) {
+        format = message->format;
+    } else {
+        format = findFormat(message->format);
+    }
 
     // 3. Create the DMABUF-based wl_buffer
     struct zwp_linux_buffer_params_v1 *params;
