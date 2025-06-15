@@ -9,6 +9,8 @@
 
 #include <playsocket.h>
 
+#include <wayland-window.h>
+
 #define QUOTE(str) #str
 #define EXPAND_AND_QUOTE(str) QUOTE(str)
 
@@ -42,12 +44,16 @@ struct display {
     uint64_t modifier;
     uint32_t stride;
     uint32_t offset;
+
+    struct window_state *wayland_state;
+    bool open_wayland_window;
 };
 
 static int gst_pipeline_init(struct display *display) {
     GstCaps *caps;
     GError *err = NULL;
     GstStateChangeReturn ret;
+    GstCapsFeatures *features;
 
     if (!gst_init_check(NULL, NULL, &err)) {
         fprintf(stderr, "GStreamer initialization error: %s\n",
@@ -77,8 +83,8 @@ static int gst_pipeline_init(struct display *display) {
                     display->port + 1, display->port + 2);
         } else {
             snprintf(pipeline_str, sizeof(pipeline_str),
-                    "appsrc name=src is-live=true format=time "
-                    "! videoconvert ! xvimagesink name=videosink");
+                     "appsrc name=src is-live=true format=time "
+                     "! waylandsink name=videosink");
         }
         display->gst_pipeline = strdup(pipeline_str);
     }
@@ -117,6 +123,9 @@ static int gst_pipeline_init(struct display *display) {
         fprintf(stderr, "Could not create gstreamer caps.\n");
         goto err;
     }
+    features = gst_caps_features_new("memory:DMABuf", NULL);
+    gst_caps_set_features(caps, 0, features);
+
     g_object_set(G_OBJECT(display->appsrc),
                  "caps", caps,
                  "stream-type", 0,
@@ -157,6 +166,7 @@ static void gst_pipeline_deinit(struct display *display) {
         gst_object_unref(GST_OBJECT(display->bus));
     gst_object_unref(GST_OBJECT(display->pipeline));
     display->pipeline = NULL;
+    display->start_time = 0;
 }
 
 static int gst_output_frame(struct display *display) {
@@ -167,15 +177,15 @@ static int gst_output_frame(struct display *display) {
     GstClockTime ts, current_frame_time;
 
     gsize offset[GST_VIDEO_MAX_PLANES] = {
-        0,
+        display->offset,
     };
     gint stride[GST_VIDEO_MAX_PLANES] = {
-        0,
+        (gint)display->stride,
     };
 
     buf = gst_buffer_new();
     mem = gst_dmabuf_allocator_alloc(display->allocator, display->dmabuf_fd,
-                                     display->stride * display->height);
+                                               display->stride * display->height);
     gst_buffer_append_memory(buf, mem);
     gst_buffer_add_video_meta_full(buf,
                                    GST_VIDEO_FRAME_FLAG_NONE,
@@ -222,27 +232,18 @@ static void print_usage_and_exit(void) {
            "\t'-l,--live'"
            "\n\t\tShould live stream to rstp\n"
            "\t'-p,--port=<>'"
-           "\n\t\tport to stream to, default is %d\n",
+           "\n\t\tport to stream to, default is %d\n"
+           "\t'-a,--wayland-window'"
+           "\n\t\tOpen Real wayland window\n",
            SOCKET_PATH, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_REFRESH_RATE, LIVE_PORT);
     exit(0);
-}
-
-static int is_true(const char *c) {
-    if (!strcmp(c, "1"))
-        return 1;
-    else if (!strcmp(c, "0"))
-        return 0;
-    else
-        print_usage_and_exit();
-
-    return 0;
 }
 
 int main(int argc, char **argv) {
     int c, option_index = 0;
     struct display *display = NULL;
 
-    display = (struct display *) malloc(sizeof *display);
+    display = (struct display *)calloc(1, sizeof *display);
     if (display == NULL) {
         fprintf(stderr, "out of memory\n");
     }
@@ -260,10 +261,11 @@ int main(int argc, char **argv) {
         {"refresh-rate", required_argument, 0, 'r'},
         {"live", no_argument, 0, 'l'},
         {"port", required_argument, 0, 'p'},
+        {"wayland-window", no_argument, 0, 'a'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
-    while ((c = getopt_long(argc, argv, "hs:w:y:r:p:l",
+    while ((c = getopt_long(argc, argv, "hs:w:y:r:p:la",
                             long_options, &option_index)) != -1) {
         switch (c) {
         case 's':
@@ -283,7 +285,7 @@ int main(int argc, char **argv) {
             display->refresh_rate = strtol(optarg, NULL, 10);
             break;
         case 'l':
-            display->is_live = is_true(optarg);
+            display->is_live = true;
             break;
         case 'p':
             display->port = strtol(optarg, NULL, 10);
@@ -292,12 +294,19 @@ int main(int argc, char **argv) {
                 exit(EXIT_FAILURE);
             }
             break;
+        case 'a':
+            display->open_wayland_window = true;
+            break;
         default:
             print_usage_and_exit();
         }
     }
 
     printf("This is project %s, version %s.\n", EXPAND_AND_QUOTE(PROJECT_NAME), EXPAND_AND_QUOTE(PROJECT_VERSION));
+    if (display->open_wayland_window) {
+        printf("Opening wayland window\n");
+        display->wayland_state = setup_wayland_window();
+    }
 
     int sock = create_socket(display->socket_path);
     while (1) {
@@ -318,9 +327,12 @@ int main(int argc, char **argv) {
         case MSG_TYPE_DATA:
             if (message.type == MSG_HELLO) {
                 printf("Got hello message\n");
-                gst_pipeline_deinit(display);
-                gst_pipeline_init(display);
-                // Reset Everything
+                if (display->open_wayland_window) {
+                    setup_window(display->wayland_state);
+                } else {
+                    gst_pipeline_deinit(display);
+                    gst_pipeline_init(display);
+                }
             }
             break;
         case MSG_TYPE_DATA_NEEDS_REPLY:
@@ -331,7 +343,7 @@ int main(int argc, char **argv) {
                 reply.type = MSG_HAVE_RESOLUTION;
                 reply.width = display->width;
                 reply.height = display->height;
-                reply.refresh_rate = display->refresh_rate;
+                reply.refresh_rate = display->refresh_rate * 1000; // Convert to ms
                 send_message(sock, -1, MSG_TYPE_DATA_REPLY, &reply);
             }
             break;
@@ -352,7 +364,11 @@ int main(int argc, char **argv) {
             display->stride = message.stride;
             display->offset = message.offset;
 
-            gst_output_frame(display);
+            if (display->open_wayland_window)
+                draw_window(display->wayland_state, &message, dmabuf_fd);
+            else
+                gst_output_frame(display);
+
             break;
         default:
             printf("Unknown message type\n");

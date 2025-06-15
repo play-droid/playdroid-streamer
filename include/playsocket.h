@@ -1,5 +1,3 @@
-#pragma once
-
 #include <cstdint>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,49 +6,19 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-enum MessageType {
-    MSG_FAILED,
-    MSG_TYPE_DATA,
-    MSG_TYPE_DATA_NEEDS_REPLY,
-	MSG_TYPE_DATA_REPLY,
-    MSG_TYPE_FD
-};
-
-struct MessageHeader {
-    uint32_t type;   // from MessageType
-    uint32_t length; // length of the payload (excluding header)
-};
-
-enum DataType {
-    MSG_HELLO,
-    MSG_ASK_FOR_RESOLUTION,
-    MSG_HAVE_RESOLUTION,
-    MSG_HAVE_BUFFER
-};
-
-struct MessageData {
-	DataType type;
-	int width;
-	int height;
-	int refresh_rate;
-
-    int format;
-    uint64_t modifiers;
-    int32_t stride;
-    int32_t offset;
-};
+#include "socket-protocol.h"
 
 int create_socket(const char *path) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     struct sockaddr_un addr;
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_UNIX;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path);
     unlink(path);
     if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		exit(-1);
-	}
+        exit(-1);
+    }
     listen(sock, 1);
 
     return accept(sock, NULL, NULL);
@@ -61,22 +29,22 @@ int connect_socket(const char *path) {
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
     memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_UNIX;
+    addr.sun_family = AF_UNIX;
     strcpy(addr.sun_path, path);
     connect(sock, (struct sockaddr *)&addr, sizeof(addr));
 
-	return sock;
+    return sock;
 }
 
 int send_message(int sock, int fd, MessageType type, MessageData *payload) {
     struct msghdr msg;
-	memset(&msg, 0, sizeof(msg));
+    memset(&msg, 0, sizeof(msg));
 
-	size_t payload_len = payload ? sizeof(MessageData) : 0;
-	if (payload && payload_len > sizeof(MessageData)) {
-		fprintf(stderr, "Payload length exceeds maximum size\n");
-		return -1;
-	}
+    size_t payload_len = payload ? sizeof(MessageData) : 0;
+    if (payload && payload_len > sizeof(MessageData)) {
+        fprintf(stderr, "Payload length exceeds maximum size\n");
+        return -1;
+    }
 
     // Construct message header
     MessageHeader header = {(uint32_t)type, (uint32_t)payload_len};
@@ -113,19 +81,19 @@ int send_message(int sock, int fd, MessageType type, MessageData *payload) {
         return -1;
     }
 
-	return 0;
+    return 0;
 }
 
-int recv_message(int sock, int *fd_out, MessageData *buffer, MessageType* out_type) {
+int recv_message(int sock, int *fd_out, MessageData *buffer, MessageType *out_type) {
     struct msghdr msg;
     struct iovec io;
     char control_buf[256] = {0};
 
     size_t buffer_size = buffer ? sizeof(MessageData) : 0;
     if (buffer && buffer_size > sizeof(MessageData)) {
-		fprintf(stderr, "Payload length exceeds maximum size\n");
-		return -1;
-	}
+        fprintf(stderr, "Payload length exceeds maximum size\n");
+        return -1;
+    }
 
     memset(&msg, 0, sizeof(msg));
 
@@ -141,10 +109,10 @@ int recv_message(int sock, int *fd_out, MessageData *buffer, MessageType* out_ty
     msg.msg_controllen = sizeof(control_buf);
 
     ssize_t n = recvmsg(sock, &msg, 0);
-	if (n == 0) {
-		*out_type = MSG_FAILED;
-		return 0; // Connection closed
-	}
+    if (n == 0) {
+        *out_type = MSG_FAILED;
+        return 0; // Connection closed
+    }
     if (n < 0) {
         fprintf(stderr, "recvmsg failed\n");
         *out_type = MSG_FAILED;
@@ -160,8 +128,8 @@ int recv_message(int sock, int *fd_out, MessageData *buffer, MessageType* out_ty
     MessageHeader header;
     memcpy(&header, recv_buf.data(), sizeof(header));
     if (header.length > buffer_size) {
-		fprintf(stderr, "recvmsg received data larger than buffer size\n");
-		*out_type = MSG_FAILED;
+        fprintf(stderr, "recvmsg received data larger than buffer size\n");
+        *out_type = MSG_FAILED;
         return -1;
     }
 
@@ -178,6 +146,6 @@ int recv_message(int sock, int *fd_out, MessageData *buffer, MessageType* out_ty
         }
     }
 
-	*out_type = (MessageType)header.type;
+    *out_type = (MessageType)header.type;
     return n;
 }
