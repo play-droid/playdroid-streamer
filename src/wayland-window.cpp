@@ -100,7 +100,7 @@ struct window_state *setup_wayland_window() {
     // Initialize the application window_state
 
     struct window_state* app_state;
-    app_state = (struct window_state *)malloc(sizeof(struct window_state));
+    app_state = (struct window_state *)calloc(1, sizeof(struct window_state));
 
     app_state->running = 1;
 

@@ -1,6 +1,7 @@
-#include <getopt.h>
 #include <cstdio>
+#include <getopt.h>
 #include <stdlib.h>
+#include <thread>
 
 #include <gst/allocators/gstdmabuf.h>
 #include <gst/app/gstappsrc.h>
@@ -38,12 +39,6 @@ struct display {
     int width;
     int height;
     int refresh_rate;
-
-    int dmabuf_fd;
-    int format;
-    uint64_t modifier;
-    uint32_t stride;
-    uint32_t offset;
 
     struct window_state *wayland_state;
     bool open_wayland_window;
@@ -169,7 +164,7 @@ static void gst_pipeline_deinit(struct display *display) {
     display->start_time = 0;
 }
 
-static int gst_output_frame(struct display *display) {
+static int gst_output_frame(struct display *display, struct MessageData *message, int dmabuf_fd) {
     GstBuffer *buf;
     GstMemory *mem;
 
@@ -177,21 +172,21 @@ static int gst_output_frame(struct display *display) {
     GstClockTime ts, current_frame_time;
 
     gsize offset[GST_VIDEO_MAX_PLANES] = {
-        display->offset,
+        (gsize)message->offset,
     };
     gint stride[GST_VIDEO_MAX_PLANES] = {
-        (gint)display->stride,
+        (gint)message->stride,
     };
 
     buf = gst_buffer_new();
-    mem = gst_dmabuf_allocator_alloc(display->allocator, display->dmabuf_fd,
-                                               display->stride * display->height);
+    mem = gst_dmabuf_allocator_alloc(display->allocator, dmabuf_fd,
+                                     message->stride * message->height);
     gst_buffer_append_memory(buf, mem);
     gst_buffer_add_video_meta_full(buf,
                                    GST_VIDEO_FRAME_FLAG_NONE,
                                    GST_VIDEO_FORMAT_BGRx,
-                                   display->width,
-                                   display->height,
+                                   message->width,
+                                   message->height,
                                    1,
                                    offset,
                                    stride);
@@ -314,8 +309,6 @@ int main(int argc, char **argv) {
         struct MessageData message;
         int dmabuf_fd;
 
-        fprintf(stderr, "Waiting for message...\n");
-
         int ret = recv_message(sock, &dmabuf_fd, &message, &type);
         if (ret == 0) {
             fprintf(stderr, "recv_message closed\n");
@@ -358,16 +351,13 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "Invalid dmabuf_fd: %d\n", dmabuf_fd);
                 break;
             }
-            display->dmabuf_fd = dmabuf_fd;
-            display->format = message.format;
-            display->modifier = message.modifiers;
-            display->stride = message.stride;
-            display->offset = message.offset;
 
-            if (display->open_wayland_window)
-                draw_window(display->wayland_state, &message, dmabuf_fd);
-            else
-                gst_output_frame(display);
+            if (display->open_wayland_window) {
+                std::thread(draw_window, display->wayland_state, &message, dmabuf_fd).detach();
+
+            } else {
+                std::thread(gst_output_frame, display, &message, dmabuf_fd).detach();
+            }
 
             break;
         default:

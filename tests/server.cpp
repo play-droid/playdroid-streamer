@@ -1,20 +1,15 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
+#include <drm_fourcc.h>
 #include <stdio.h>
+
 #include <playsocket.h>
 
 #include "render.h"
 #include <wayland-window.h>
 
 #define SOCKET_PATH "/run/user/1000/playdroid_socket"
-
-// These extensions are usually loaded via eglGetProcAddress
-PFNEGLCREATEIMAGEKHRPROC eglCreateImageKHR = NULL;
-PFNEGLDESTROYIMAGEKHRPROC eglDestroyImageKHR = NULL;
-PFNEGLQUERYDMABUFFORMATSEXTPROC eglQueryDmaBufFormatsEXT = NULL;
-PFNEGLEXPORTDMABUFIMAGEQUERYMESAPROC eglExportDMABUFImageQueryMESA = NULL;
-PFNEGLEXPORTDMABUFIMAGEMESAPROC eglExportDMABUFImageMESA = NULL;
 
 int main(int argc, char **argv) {
     if(argc != 1) {
@@ -39,110 +34,37 @@ int main(int argc, char **argv) {
     }
     printf("Got resolution: %dx%d@%dHz\n", message.width, message.height, message.refresh_rate);
 
-    // 1. Initialize EGL (platform specific, assumes EGL_DEFAULT_DISPLAY)
-    EGLDisplay egl_display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    eglInitialize(egl_display, NULL, NULL);
+    struct display *display = create_display("/dev/dri/renderD128");
 
-    // 2. Choose EGL config
-    EGLint attribs[] = {
-        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
-        EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
-        EGL_NONE};
-    EGLConfig config;
-    EGLint num_configs;
-    eglChooseConfig(egl_display, attribs, &config, 1, &num_configs);
+    struct buffer *buffer;
+    buffer = (struct buffer *)calloc(1, sizeof *buffer);
+    buffer->display = display;
+    buffer->width = message.width;
+    buffer->height = message.height;
+    buffer->format = BUFFER_FORMAT;
 
-    // 3. Create Pbuffer surface
-    EGLint pbuf_attribs[] = {
-        EGL_WIDTH,
-        message.width,
-        EGL_HEIGHT,
-        message.height,
-        EGL_NONE,
-    };
-    EGLSurface surface = eglCreatePbufferSurface(egl_display, config, pbuf_attribs);
+    create_dmabuf_buffer(display, buffer);
+    window_set_up_gl(display);
 
-    // 4. Create OpenGL ES 2 context
-    EGLint ctx_attribs[] = {EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE};
-    EGLContext context = eglCreateContext(egl_display, config, EGL_NO_CONTEXT, ctx_attribs);
-    eglMakeCurrent(egl_display, surface, surface, context);
-
-    // 5. Load required extensions
-    eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
-    eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
-    eglExportDMABUFImageQueryMESA = (PFNEGLEXPORTDMABUFIMAGEQUERYMESAPROC)eglGetProcAddress("eglExportDMABUFImageQueryMESA");
-    eglExportDMABUFImageMESA = (PFNEGLEXPORTDMABUFIMAGEMESAPROC)eglGetProcAddress("eglExportDMABUFImageMESA");
-
-    if (!eglExportDMABUFImageMESA) {
-        fprintf(stderr, "eglExportDMABUFImageMESA not supported\n");
-        return 1;
-    }
-
-    const size_t TEXTURE_DATA_WIDTH = message.width;
-    const size_t TEXTURE_DATA_HEIGHT = message.height;
-    const size_t TEXTURE_DATA_SIZE = message.width * message.height;
-    int *texture_data = create_data(TEXTURE_DATA_SIZE);
-
-    // 6. Create texture
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, message.width, message.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, message.width, message.height, GL_RGBA, GL_UNSIGNED_BYTE, texture_data);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // 7. Draw something (just clear to red)
-    /*glViewport(0, 0, message.width, message.height);
-    glClearColor(1.0, 0.0, 0.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);*/
-
-    // 8. Create EGLImage from GL texture
-    EGLImageKHR image = eglCreateImageKHR(egl_display, context,
-                                          EGL_GL_TEXTURE_2D_KHR,
-                                          (EGLClientBuffer)(uintptr_t)tex, NULL);
-
-    if (image == EGL_NO_IMAGE_KHR) {
-        fprintf(stderr, "Failed to create EGLImageKHR\n");
-        return 1;
-    }
-
-    // 9. Export to dma-buf
-    message.type = MSG_HAVE_BUFFER;
-    int dma_buf_fd;
-    int num_planes;
-    eglExportDMABUFImageQueryMESA(egl_display,
-                                                       image,
-                                                       &message.format,
-                                                       &num_planes,
-                                                       &message.modifiers);
-
-    fprintf(stderr, "Exporting DMA-BUF: format=%d, num_planes=%d, modifiers=0x%lx\n",
-           message.format, num_planes, message.modifiers);
-    EGLBoolean ok = eglExportDMABUFImageMESA(egl_display, image, &dma_buf_fd, &message.stride, &message.offset);
-    if (!ok) {
-        fprintf(stderr, "Failed to export DMA-BUF\n");
-        return 1;
-    }
-
-    printf("DMA-BUF exported: fd=%d stride=%d offset=%d\n", dma_buf_fd, message.stride, message.offset);
     struct window_state *wayland_state = setup_wayland_window();
     setup_window(wayland_state);
 
-    while (1) {
-        gl_draw_scene(tex);
-        rotate_data(texture_data, TEXTURE_DATA_SIZE);
-        glBindTexture(GL_TEXTURE_2D, tex);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, TEXTURE_DATA_WIDTH, TEXTURE_DATA_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, texture_data);
+    message.type = MSG_HAVE_BUFFER;
+    message.format = buffer->format;
+    message.modifiers = buffer->modifier;
+    message.stride = buffer->strides[0];
+    message.offset = buffer->offsets[0];
 
-        //draw_window(wayland_state, &message, dma_buf_fd);
+    while (1) {
+        render(display, buffer);
+        glFinish();
+
+        //draw_window(wayland_state, &message, buffer->dmabuf_fds[0]);
 
         //fprintf(stderr, "Sending message with fd %d\n", dma_buf_fd);
-        send_message(sock, dma_buf_fd, MSG_TYPE_FD, &message);
+        send_message(sock, buffer->dmabuf_fds[0], MSG_TYPE_FD, &message);
 
-        //usleep(6000000 / (message.refresh_rate / 1000)); // Sleep to match refresh rate
-        sleep(1); // Sleep for 1 second for demonstration purposes
+        usleep(6000000 / (message.refresh_rate / 1000)); // Sleep to match refresh rate
     }
 
     close(sock);

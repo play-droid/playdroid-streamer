@@ -5,7 +5,7 @@ test_server_source_files = [
 public_headers = include_directories('../include')
 
 depnames = [
-    'wayland-client', 'libdrm',
+  'wayland-client', 'libdrm', 'gbm',
 
   'egl', 'gl',
 ]
