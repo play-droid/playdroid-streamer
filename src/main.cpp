@@ -48,7 +48,6 @@ static int gst_pipeline_init(struct display *display) {
     GstCaps *caps;
     GError *err = NULL;
     GstStateChangeReturn ret;
-    GstCapsFeatures *features;
 
     if (!gst_init_check(NULL, NULL, &err)) {
         fprintf(stderr, "GStreamer initialization error: %s\n",
@@ -62,25 +61,9 @@ static int gst_pipeline_init(struct display *display) {
 
     if (!display->gst_pipeline) {
         char pipeline_str[1024];
-        /* TODO: use encodebin instead of jpegenc */
-        if (display->is_live) {
-            snprintf(pipeline_str, sizeof(pipeline_str),
-                    "rtpbin name=rtpbin "
-                    "appsrc name=src ! videoconvert ! "
-                    "video/x-raw,format=I420 ! jpegenc ! rtpjpegpay ! "
-                    "rtpbin.send_rtp_sink_0 "
-                    "rtpbin.send_rtp_src_0 ! "
-                    "udpsink name=sink host=%s port=%d "
-                    "rtpbin.send_rtcp_src_0 ! "
-                    "udpsink host=%s port=%d sync=false async=false "
-                    "udpsrc port=%d ! rtpbin.recv_rtcp_sink_0",
-                    LIVE_HOST, display->port, LIVE_HOST,
-                    display->port + 1, display->port + 2);
-        } else {
-            snprintf(pipeline_str, sizeof(pipeline_str),
-                     "appsrc name=src is-live=true format=time "
-                     "! waylandsink name=videosink");
-        }
+        snprintf(pipeline_str, sizeof(pipeline_str),
+                 "appsrc name=src is-live=true format=time "
+                 "! waylandsink name=videosink");
         display->gst_pipeline = strdup(pipeline_str);
     }
     fprintf(stderr, "GST pipeline: %s\n", display->gst_pipeline);
@@ -118,8 +101,6 @@ static int gst_pipeline_init(struct display *display) {
         fprintf(stderr, "Could not create gstreamer caps.\n");
         goto err;
     }
-    features = gst_caps_features_new("memory:DMABuf", NULL);
-    gst_caps_set_features(caps, 0, features);
 
     g_object_set(G_OBJECT(display->appsrc),
                  "caps", caps,
@@ -224,8 +205,8 @@ static void print_usage_and_exit(void) {
            "\n\t\theight of screen, default is %d\n"
            "\t'-r,--refresh-rate=<>'"
            "\n\t\trefresh rate of display, default is %d\n"
-           "\t'-l,--live'"
-           "\n\t\tShould live stream to rstp\n"
+           "\t'-l,--gst-pipeline=<>'"
+           "\n\t\tCustom GST pipeline, default is wayland\n"
            "\t'-p,--port=<>'"
            "\n\t\tport to stream to, default is %d\n"
            "\t'-a,--wayland-window'"
@@ -254,13 +235,13 @@ int main(int argc, char **argv) {
         {"width", required_argument, 0, 'w'},
         {"height", required_argument, 0, 'y'},
         {"refresh-rate", required_argument, 0, 'r'},
-        {"live", no_argument, 0, 'l'},
+        {"gst-pipeline", required_argument, 0, 'l'},
         {"port", required_argument, 0, 'p'},
         {"wayland-window", no_argument, 0, 'a'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}};
 
-    while ((c = getopt_long(argc, argv, "hs:w:y:r:p:la",
+    while ((c = getopt_long(argc, argv, "hs:w:y:r:p:l:a",
                             long_options, &option_index)) != -1) {
         switch (c) {
         case 's':
@@ -280,7 +261,7 @@ int main(int argc, char **argv) {
             display->refresh_rate = strtol(optarg, NULL, 10);
             break;
         case 'l':
-            display->is_live = true;
+            display->gst_pipeline = optarg;
             break;
         case 'p':
             display->port = strtol(optarg, NULL, 10);
@@ -354,7 +335,6 @@ int main(int argc, char **argv) {
 
             if (display->open_wayland_window) {
                 std::thread(draw_window, display->wayland_state, &message, dmabuf_fd).detach();
-
             } else {
                 std::thread(gst_output_frame, display, &message, dmabuf_fd).detach();
             }

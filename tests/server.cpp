@@ -9,15 +9,20 @@
 #include "render.h"
 #include <wayland-window.h>
 
-#define SOCKET_PATH "/run/user/1000/playdroid_socket"
+#define DEF_SOCKET_PATH "/tmp/playdroid_socket"
 
 int main(int argc, char **argv) {
-    if(argc != 1) {
-        printf("%s takes no arguments.\n", argv[0]);
+    if(argc > 2) {
+        printf("%s takes no more than 1 argument.\n", argv[0]);
         return 1;
     }
 
-    int sock = connect_socket(SOCKET_PATH);
+    const char *socket_path = DEF_SOCKET_PATH;
+    if (argc == 2) {
+        socket_path = argv[1];
+    }
+
+    int sock = connect_socket(socket_path);
 
     struct MessageData message;
     message.type = MSG_HELLO;
@@ -46,8 +51,8 @@ int main(int argc, char **argv) {
     create_dmabuf_buffer(display, buffer);
     window_set_up_gl(display);
 
-    struct window_state *wayland_state = setup_wayland_window();
-    setup_window(wayland_state);
+    //struct window_state *wayland_state = setup_wayland_window();
+    //setup_window(wayland_state);
 
     message.type = MSG_HAVE_BUFFER;
     message.format = buffer->format;
