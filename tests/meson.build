@@ -7,7 +7,7 @@ public_headers = include_directories('../include')
 depnames = [
   'wayland-client', 'libdrm', 'gbm',
 
-  'egl', 'gl',
+  'egl', 'gl', 'threads',
 ]
 
 test_server_dependencies = []

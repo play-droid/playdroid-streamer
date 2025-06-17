@@ -15,6 +15,44 @@
 #include <socket-protocol.h>
 #include <wayland-window.h>
 
+static void
+buffer_release(void *data, struct wl_buffer *) {
+    struct window_state *app_state = (struct window_state *)data;
+
+    wl_buffer_destroy(app_state->buffer);
+}
+
+static const struct wl_buffer_listener buffer_listener = {
+    buffer_release
+};
+
+static void
+create_succeeded(void *data,
+                 struct zwp_linux_buffer_params_v1 *params,
+                 struct wl_buffer *new_buffer) {
+    struct window_state *app_state = (struct window_state *)data;
+
+    wl_buffer_destroy(app_state->buffer);
+    app_state->buffer = new_buffer;
+
+    zwp_linux_buffer_params_v1_destroy(params);
+    fprintf(stderr, "Buffer created successfully with format\n");
+}
+
+static void
+create_failed(void *data, struct zwp_linux_buffer_params_v1 *params) {
+    struct window_state *app_state = (struct window_state *)data;
+
+    app_state->buffer = NULL;
+
+    zwp_linux_buffer_params_v1_destroy(params);
+}
+
+static const struct zwp_linux_buffer_params_v1_listener params_listener = {
+    create_succeeded,
+    create_failed
+};
+
 static void dmabuf_format(void *, struct zwp_linux_dmabuf_v1 *, uint32_t);
 static void dmabuf_modifiers(void *data, struct zwp_linux_dmabuf_v1 *dmabuf,
                  uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
@@ -205,6 +243,7 @@ int draw_window(struct window_state *app_state, struct MessageData *message, int
                                    stride,
                                    message->modifiers >> 32,
                                    message->modifiers & 0xffffffff);
+    zwp_linux_buffer_params_v1_add_listener(params, &params_listener, app_state);
 
     // Create the wl_buffer. The 'created' event is immediate for this version.
     app_state->buffer = zwp_linux_buffer_params_v1_create_immed(params,
@@ -218,10 +257,11 @@ int draw_window(struct window_state *app_state, struct MessageData *message, int
         fprintf(stderr, "Failed to create wl_buffer from dmabuf.\n");
         return EXIT_FAILURE;
     }
+    wl_buffer_add_listener(app_state->buffer, &buffer_listener, app_state);
 
     // The dmabuf fd can be closed after import by the compositor
-    close(dmabuf_fd);
-    fprintf(stderr, "Created wl_buffer with format %u, stride %u\n", format, stride);
+    //close(dmabuf_fd);
+    //fprintf(stderr, "Created wl_buffer with format %u, stride %u\n", format, stride);
 
     // Initial draw
     wl_surface_attach(app_state->surface, app_state->buffer, 0, 0);

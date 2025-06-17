@@ -33,7 +33,6 @@ struct display {
     GstElement *pipeline;
     GstAppSrc *appsrc;
     GstBus *bus;
-    GstClockTime start_time;
     bool is_live;
 
     int width;
@@ -118,7 +117,6 @@ static int gst_pipeline_init(struct display *display) {
     /*gst_bus_set_sync_handler(display->bus, remoting_gst_bus_sync_handler,
                              &display->gstpipe, NULL);*/
 
-    // display->start_time = 0;
     ret = gst_element_set_state(display->pipeline, GST_STATE_PLAYING);
     if (ret == GST_STATE_CHANGE_FAILURE) {
         fprintf(stderr, "Couldn't set GST_STATE_PLAYING to pipeline\n");
@@ -142,15 +140,11 @@ static void gst_pipeline_deinit(struct display *display) {
         gst_object_unref(GST_OBJECT(display->bus));
     gst_object_unref(GST_OBJECT(display->pipeline));
     display->pipeline = NULL;
-    display->start_time = 0;
 }
 
-static int gst_output_frame(struct display *display, struct MessageData *message, int dmabuf_fd) {
+static void gst_output_frame(struct display *display, struct MessageData *message, int dmabuf_fd) {
     GstBuffer *buf;
     GstMemory *mem;
-
-    struct timespec current_frame_ts;
-    GstClockTime ts, current_frame_time;
 
     gsize offset[GST_VIDEO_MAX_PLANES] = {
         (gsize)message->offset,
@@ -172,27 +166,20 @@ static int gst_output_frame(struct display *display, struct MessageData *message
                                    offset,
                                    stride);
 
-    clock_gettime(CLOCK_REALTIME, &current_frame_ts);
+    GstClock *clock = gst_element_get_clock(GST_ELEMENT(display->pipeline));
+    GstClockTime base_time = gst_element_get_base_time(GST_ELEMENT(display->pipeline));
+    GstClockTime now = gst_clock_get_time(clock);
+    GstClockTime running_time = now - base_time;
+    gst_object_unref(clock);
 
-    current_frame_time = GST_TIMESPEC_TO_TIME(current_frame_ts);
-    if (display->start_time == 0)
-        display->start_time = current_frame_time;
-    ts = current_frame_time - display->start_time;
-
-    if (GST_CLOCK_TIME_IS_VALID(ts)) {
-        GST_BUFFER_PTS(buf) = ts;
-
-    } else
-        GST_BUFFER_PTS(buf) = GST_CLOCK_TIME_NONE;
-    GST_BUFFER_DURATION(buf) = GST_CLOCK_TIME_NONE;
+    GST_BUFFER_PTS(buf) = running_time;
+    GST_BUFFER_DURATION(buf) = gst_util_uint64_scale_int(1, GST_SECOND, display->refresh_rate);
 
     int ret = gst_app_src_push_buffer((GstAppSrc *)display->appsrc, buf);
     if (ret != GST_FLOW_OK) {
         /* something wrong, stop pushing */
         fprintf(stderr, "Error: gst_app_src_push_buffer failed: %d\n", ret);
     }
-
-    return 0;
 }
 
 static void print_usage_and_exit(void) {
@@ -322,11 +309,11 @@ int main(int argc, char **argv) {
             }
             break;
         case MSG_TYPE_FD:
-            printf("Got FD: %d\n", dmabuf_fd);
+            /*printf("Got FD: %d\n", dmabuf_fd);
             printf("Got data: format: %d, stride: %d, offset: %d\n",
                    message.format,
                    message.stride,
-                   message.offset);
+                   message.offset);*/
 
             if (dmabuf_fd < 0) {
                 fprintf(stderr, "Invalid dmabuf_fd: %d\n", dmabuf_fd);
@@ -334,9 +321,10 @@ int main(int argc, char **argv) {
             }
 
             if (display->open_wayland_window) {
-                std::thread(draw_window, display->wayland_state, &message, dmabuf_fd).detach();
+                draw_window(display->wayland_state, &message, dmabuf_fd);
+                close(dmabuf_fd); 
             } else {
-                std::thread(gst_output_frame, display, &message, dmabuf_fd).detach();
+                gst_output_frame(display, &message, dmabuf_fd);
             }
 
             break;
