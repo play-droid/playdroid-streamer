@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Expected resolution reply, got type %d, message type %d\n", type, message.type);
         return 1;
     }
-    printf("Got resolution: %dx%d@%dHz\n", message.width, message.height, message.refresh_rate);
+    printf("Got resolution: %dx%d@%dHz\n", message.width, message.height, message.refresh_rate / 1000);
 
     struct display *display = create_display("/dev/dri/renderD128");
 

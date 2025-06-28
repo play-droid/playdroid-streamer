@@ -7,6 +7,8 @@ project(
 
 project_source_files = [
   'src/main.cpp',
+  'src/display.cpp',
+  'src/gsthelper.cpp',
 ]
 
 public_headers = include_directories('include')
