@@ -18,7 +18,7 @@ void handle_message(struct display *display, int sock, MessageType type, Message
                     setup_window(display->wayland_state);
                 } else {
                     gst_pipeline_deinit(gsthelper);
-                    gst_pipeline_init(gsthelper, message->width, message->height, message->refresh_rate);
+                    gst_pipeline_init(gsthelper, display->width, display->height, display->refresh_rate);
                 }
             }
             break;
@@ -50,7 +50,7 @@ void handle_message(struct display *display, int sock, MessageType type, Message
                 draw_window(display->wayland_state, message, dmabuf_fd);
                 close(dmabuf_fd); 
             } else {
-                gst_output_frame(gsthelper, dmabuf_fd, message->width, message->height, message->refresh_rate, message->offset, message->stride);
+                gst_output_frame(gsthelper, dmabuf_fd, display->width, display->height, display->refresh_rate, message->offset, message->stride);
             }
 
             break;
