@@ -8,6 +8,7 @@ project(
 project_source_files = [
   'src/main.cpp',
   'src/display.cpp',
+  'src/input.cpp',
   'src/gsthelper.cpp',
 ]
 
@@ -18,14 +19,14 @@ depnames = [
 
   'gstreamer-1.0', 'gstreamer-allocators-1.0',
   'gstreamer-app-1.0', 'gstreamer-video-1.0',
-  'gobject-2.0', 'glib-2.0', 'threads'
+  'gobject-2.0', 'glib-2.0', 'threads', 'xkbcommon'
 ]
 
 project_dependencies = []
 foreach depname : depnames
   dep = dependency(depname, required: false)
   if not dep.found()
-    error('Remoting plugin requires @0@ which was not found. '.format(depname) + user_hint)
+    error('Remoting plugin requires @0@ which was not found. '.format(depname))
   endif
   project_dependencies += dep
 endforeach

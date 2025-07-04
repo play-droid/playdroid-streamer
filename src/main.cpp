@@ -5,6 +5,7 @@
 
 #include <display.h>
 #include <gsthelper.h>
+#include <input.h>
 
 #define QUOTE(str) #str
 #define EXPAND_AND_QUOTE(str) QUOTE(str)
@@ -12,6 +13,7 @@
 struct playdroid {
     struct display *display;
     struct gsthelper *gsthelper;
+    struct input *input;
 
 };
 
@@ -93,10 +95,24 @@ int main(int argc, char **argv) {
     if (playdroid->gsthelper == NULL) {
         fprintf(stderr, "out of memory\n");
     }
+    playdroid->input = (struct input *)calloc(1, sizeof *playdroid->input);
+    if (playdroid->input == NULL) {
+        fprintf(stderr, "out of memory\n");
+    }
     printf("This is project %s, version %s.\n", EXPAND_AND_QUOTE(PROJECT_NAME), EXPAND_AND_QUOTE(PROJECT_VERSION));
     init_display(playdroid->display);
     parse_args(argc, argv, playdroid);
 
+    // Set up the Input Event Handlers
+    init_input(playdroid->input);
+
+    if (!playdroid->display->open_wayland_window) {
+        gst_pipeline_deinit(playdroid->gsthelper);
+        gst_pipeline_init(playdroid->gsthelper, playdroid->display->width, playdroid->display->height, 
+            playdroid->display->refresh_rate, playdroid->input);
+    }
+
+    // Set up the display socket
     std::thread display_thread([&playdroid]() {
         run_display(playdroid->display, playdroid->gsthelper);
     });

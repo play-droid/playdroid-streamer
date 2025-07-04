@@ -16,9 +16,6 @@ void handle_message(struct display *display, int sock, MessageType type, Message
                 printf("Got hello message\n");
                 if (display->open_wayland_window) {
                     setup_window(display->wayland_state);
-                } else {
-                    gst_pipeline_deinit(gsthelper);
-                    gst_pipeline_init(gsthelper, display->width, display->height, display->refresh_rate);
                 }
             }
             break;
