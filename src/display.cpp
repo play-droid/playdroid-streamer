@@ -32,8 +32,8 @@ void handle_message(struct display *display, int sock, MessageType type, Message
             }
             break;
         case MSG_TYPE_FD:
-            /*printf("Got FD: %d\n", dmabuf_fd);
-            printf("Got data: format: %d, stride: %d, offset: %d\n",
+            //printf("Got FD: %d\n", dmabuf_fd);
+            /*printf("Got data: format: %d, stride: %d, offset: %d\n",
                    message->format,
                    message->stride,
                    message->offset);*/

@@ -12,6 +12,7 @@ struct gsthelper {
     GstAppSrc *appsrc;
     GstBus *bus;
 
+    bool want_data;
 };
 
 int gst_pipeline_init(struct gsthelper *gsthelper, int width, int height, int refresh_rate, struct input *input);

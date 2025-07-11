@@ -96,6 +96,18 @@ out:
     return ret;
 }
 
+static void cb_need_data (GstElement *, guint , gpointer user_data) {
+    struct gsthelper *gsthelper = (struct gsthelper *)user_data;
+
+    gsthelper->want_data = true;
+}
+
+static void cb_enough_data (GstElement *, gpointer user_data) {
+    struct gsthelper *gsthelper = (struct gsthelper *)user_data;
+
+    gsthelper->want_data = false;
+}
+
 int gst_pipeline_init(struct gsthelper *gsthelper, int width, int height, int refresh_rate, struct input *input) {
     GstCaps *caps;
     GError *err = NULL;
@@ -116,7 +128,7 @@ int gst_pipeline_init(struct gsthelper *gsthelper, int width, int height, int re
         char pipeline_str[1024];
         snprintf(pipeline_str, sizeof(pipeline_str),
                  "appsrc name=src "
-                 " ! webrtcsink signaller::uri=\"ws://192.168.64.1:8443\" enable-control-data-channel=true name=sink");
+                 " ! vaapipostproc ! vaapivp9enc ! webrtcsink signaller::uri=\"ws://localhost:8443\" enable-control-data-channel=true name=sink");
         gsthelper->gst_pipeline = strdup(pipeline_str);
     }
     fprintf(stderr, "GST pipeline: %s\n", gsthelper->gst_pipeline);
@@ -164,8 +176,10 @@ int gst_pipeline_init(struct gsthelper *gsthelper, int width, int height, int re
     }
     /*gst_bus_set_sync_handler(gsthelper->bus, remoting_gst_bus_sync_handler,
                              &gsthelper->gstpipe, NULL);*/
-     
-                             
+
+    g_signal_connect (gsthelper->appsrc, "need-data", G_CALLBACK (cb_need_data), gsthelper);
+    g_signal_connect (gsthelper->appsrc, "enough-data", G_CALLBACK (cb_enough_data), gsthelper);
+
     pad = gst_element_get_static_pad (GST_ELEMENT_CAST(gst_bin_get_by_name(GST_BIN(gsthelper->pipeline), "src")), "src");
     gst_pad_set_element_private(pad, input);
     gst_pad_set_event_function_full(pad, gst_video_src_event, input, NULL);
@@ -198,6 +212,11 @@ void gst_pipeline_deinit(struct gsthelper *gsthelper) {
 void gst_output_frame(struct gsthelper *gsthelper, int dmabuf_fd, int width, int height, int refresh_rate, gsize offset, gint stride) {
     GstBuffer *buf;
     GstMemory *mem;
+
+    if(!gsthelper->want_data) {
+        close(dmabuf_fd);
+        return;
+    }
 
     gsize offsets[GST_VIDEO_MAX_PLANES] = {
         offset,
