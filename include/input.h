@@ -21,7 +21,6 @@ struct input {
     bool reverseScroll;
     int touch_id[MAX_TOUCHPOINTS];
     std::array<uint8_t, 239> keysDown;
-    bool wheelEvtIsDiscrete;
 };
 
 void init_input(struct input *input);

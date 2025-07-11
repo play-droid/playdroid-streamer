@@ -9,6 +9,7 @@
 #include <linux/input.h>
 #include <sys/stat.h>
 #include <xkbcommon/xkbcommon.h>
+#include <linux/input-event-codes.h>
 
 #include <input.h>
 
@@ -19,72 +20,99 @@ struct keysym_keycode_map {
 };
 
 struct keysym_keycode_map qwerty_map[] = {
-    { XKB_KEY_a, 38 },
-    { XKB_KEY_b, 56 },
-    { XKB_KEY_c, 54 },
-    { XKB_KEY_d, 40 },
-    { XKB_KEY_e, 26 },
-    { XKB_KEY_f, 41 },
-    { XKB_KEY_g, 42 },
-    { XKB_KEY_h, 43 },
-    { XKB_KEY_i, 31 },
-    { XKB_KEY_j, 44 },
-    { XKB_KEY_k, 45 },
-    { XKB_KEY_l, 46 },
-    { XKB_KEY_m, 58 },
-    { XKB_KEY_n, 57 },
-    { XKB_KEY_o, 32 },
-    { XKB_KEY_p, 33 },
-    { XKB_KEY_q, 24 },
-    { XKB_KEY_r, 27 },
-    { XKB_KEY_s, 39 },
-    { XKB_KEY_t, 28 },
-    { XKB_KEY_u, 30 },
-    { XKB_KEY_v, 55 },
-    { XKB_KEY_w, 25 },
-    { XKB_KEY_x, 53 },
-    { XKB_KEY_y, 29 },
-    { XKB_KEY_z, 52 },
+    { XKB_KEY_a, KEY_A },
+    { XKB_KEY_b, KEY_B },
+    { XKB_KEY_c, KEY_C },
+    { XKB_KEY_d, KEY_D },
+    { XKB_KEY_e, KEY_E },
+    { XKB_KEY_f, KEY_F },
+    { XKB_KEY_g, KEY_G },
+    { XKB_KEY_h, KEY_H },
+    { XKB_KEY_i, KEY_I },
+    { XKB_KEY_j, KEY_J },
+    { XKB_KEY_k, KEY_K },
+    { XKB_KEY_l, KEY_L },
+    { XKB_KEY_m, KEY_M },
+    { XKB_KEY_n, KEY_N },
+    { XKB_KEY_o, KEY_O },
+    { XKB_KEY_p, KEY_P },
+    { XKB_KEY_q, KEY_Q },
+    { XKB_KEY_r, KEY_R },
+    { XKB_KEY_s, KEY_S },
+    { XKB_KEY_t, KEY_T },
+    { XKB_KEY_u, KEY_U },
+    { XKB_KEY_v, KEY_V },
+    { XKB_KEY_w, KEY_W },
+    { XKB_KEY_x, KEY_X },
+    { XKB_KEY_y, KEY_Y },
+    { XKB_KEY_z, KEY_Z },
 
-    { XKB_KEY_1, 10 },
-    { XKB_KEY_2, 11 },
-    { XKB_KEY_3, 12 },
-    { XKB_KEY_4, 13 },
-    { XKB_KEY_5, 14 },
-    { XKB_KEY_6, 15 },
-    { XKB_KEY_7, 16 },
-    { XKB_KEY_8, 17 },
-    { XKB_KEY_9, 18 },
-    { XKB_KEY_0, 19 },
+    { XKB_KEY_A, KEY_A },
+    { XKB_KEY_B, KEY_B },
+    { XKB_KEY_C, KEY_C },
+    { XKB_KEY_D, KEY_D },
+    { XKB_KEY_E, KEY_E },
+    { XKB_KEY_F, KEY_F },
+    { XKB_KEY_G, KEY_G },
+    { XKB_KEY_H, KEY_H },
+    { XKB_KEY_I, KEY_I },
+    { XKB_KEY_J, KEY_J },
+    { XKB_KEY_K, KEY_K },
+    { XKB_KEY_L, KEY_L },
+    { XKB_KEY_M, KEY_M },
+    { XKB_KEY_N, KEY_N },
+    { XKB_KEY_O, KEY_O },
+    { XKB_KEY_P, KEY_P },
+    { XKB_KEY_Q, KEY_Q },
+    { XKB_KEY_R, KEY_R },
+    { XKB_KEY_S, KEY_S },
+    { XKB_KEY_T, KEY_T },
+    { XKB_KEY_U, KEY_U },
+    { XKB_KEY_V, KEY_V },
+    { XKB_KEY_W, KEY_W },
+    { XKB_KEY_X, KEY_X },
+    { XKB_KEY_Y, KEY_Y },
+    { XKB_KEY_Z, KEY_Z },
 
-    { XKB_KEY_Return, 36 },
-    { XKB_KEY_Escape, 9 },
-    { XKB_KEY_BackSpace, 22 },
-    { XKB_KEY_Tab, 23 },
-    { XKB_KEY_space, 65 },
+    { XKB_KEY_1, KEY_1 },
+    { XKB_KEY_2, KEY_2 },
+    { XKB_KEY_3, KEY_3 },
+    { XKB_KEY_4, KEY_4 },
+    { XKB_KEY_5, KEY_5 },
+    { XKB_KEY_6, KEY_6 },
+    { XKB_KEY_7, KEY_7 },
+    { XKB_KEY_8, KEY_8 },
+    { XKB_KEY_9, KEY_9 },
+    { XKB_KEY_0, KEY_0 },
 
-    { XKB_KEY_minus, 20 },
-    { XKB_KEY_equal, 21 },
-    { XKB_KEY_bracketleft, 34 },
-    { XKB_KEY_bracketright, 35 },
-    { XKB_KEY_backslash, 51 },
-    { XKB_KEY_semicolon, 47 },
-    { XKB_KEY_apostrophe, 48 },
-    { XKB_KEY_grave, 49 },
-    { XKB_KEY_comma, 59 },
-    { XKB_KEY_period, 60 },
-    { XKB_KEY_slash, 61 },
+    { XKB_KEY_Return, KEY_ENTER },
+    { XKB_KEY_Escape, KEY_ESC },
+    { XKB_KEY_BackSpace, KEY_BACKSPACE },
+    { XKB_KEY_Tab, KEY_TAB },
+    { XKB_KEY_space, KEY_SPACE },
 
-    { XKB_KEY_Shift_L, 50 },
-    { XKB_KEY_Shift_R, 62 },
-    { XKB_KEY_Control_L, 37 },
-    { XKB_KEY_Control_R, 105 },
-    { XKB_KEY_Alt_L, 64 },
-    { XKB_KEY_Alt_R, 108 },
-    { XKB_KEY_Super_L, 133 },  // Windows key
-    { XKB_KEY_Super_R, 134 },
-    { XKB_KEY_Meta_L, 133 },
-    { XKB_KEY_Meta_R, 134 }
+    { XKB_KEY_minus, KEY_MINUS },
+    { XKB_KEY_equal, KEY_EQUAL },
+    { XKB_KEY_bracketleft, KEY_LEFTBRACE },
+    { XKB_KEY_bracketright, KEY_RIGHTBRACE },
+    { XKB_KEY_backslash, KEY_BACKSLASH },
+    { XKB_KEY_semicolon, KEY_SEMICOLON },
+    { XKB_KEY_apostrophe, KEY_APOSTROPHE },
+    { XKB_KEY_grave, KEY_GRAVE },
+    { XKB_KEY_comma, KEY_COMMA },
+    { XKB_KEY_period, KEY_DOT },
+    { XKB_KEY_slash, KEY_SLASH },
+    
+    { XKB_KEY_Shift_L, KEY_LEFTSHIFT },
+    { XKB_KEY_Shift_R, KEY_RIGHTSHIFT },
+    { XKB_KEY_Control_L, KEY_LEFTCTRL },
+    { XKB_KEY_Control_R, KEY_RIGHTCTRL },
+    { XKB_KEY_Alt_L, KEY_LEFTALT },
+    { XKB_KEY_Alt_R, KEY_RIGHTALT },
+    { XKB_KEY_Super_L, KEY_LEFTMETA },
+    { XKB_KEY_Super_R, KEY_RIGHTMETA },
+    { XKB_KEY_Meta_L, KEY_LEFTMETA },
+    { XKB_KEY_Meta_R, KEY_RIGHTMETA }
 };
 
 #define QWERTY_MAP_SIZE (sizeof(qwerty_map) / sizeof(qwerty_map[0]))
@@ -93,6 +121,24 @@ uint32_t qwerty_lookup_keycode(uint32_t keysym) {
     for (size_t i = 0; i < QWERTY_MAP_SIZE; i++) {
         if (qwerty_map[i].keysym == keysym)
             return qwerty_map[i].keycode;
+    }
+    return 0; // 0 indicates not found
+}
+
+struct keysym_keycode_map mouse_map[] = {
+    { 1,  BTN_LEFT },
+    { 2,  BTN_MIDDLE },
+    { 3,  BTN_RIGHT },
+    { 8,  BTN_BACK },
+    { 9,  BTN_FORWARD }
+};
+
+#define MOUSE_MAP_SIZE (sizeof(mouse_map) / sizeof(mouse_map[0]))
+
+uint32_t mouse_lookup_keycode(uint32_t keysym) {
+    for (size_t i = 0; i < MOUSE_MAP_SIZE; i++) {
+        if (mouse_map[i].keysym == keysym)
+            return mouse_map[i].keycode;
     }
     return 0; // 0 indicates not found
 }
@@ -116,7 +162,7 @@ void init_input(struct input *input) {
     input->input_fd[INPUT_POINTER] = -1;
     input->ptrPrvX = 0;
     input->ptrPrvY = 0;
-    input->reverseScroll = false;
+    input->reverseScroll = true;
     mkfifo(INPUT_PIPE_NAME[INPUT_POINTER], S_IRWXO | S_IRWXG | S_IRWXU);
     chown(INPUT_PIPE_NAME[INPUT_POINTER], 1000, 1000);
 
@@ -360,7 +406,7 @@ void pointer_handle_button(struct input* input, uint32_t button, uint32_t state)
         fprintf(stderr, "%s:%d error in touch clock_gettime: %s",
               __FILE__, __LINE__, strerror(errno));
     }
-    ADD_EVENT(EV_KEY, button, state);
+    ADD_EVENT(EV_KEY, mouse_lookup_keycode(button), state);
     ADD_EVENT(EV_SYN, SYN_REPORT, 0);
 
     res = write(input->input_fd[INPUT_POINTER], &event, sizeof(event));
@@ -372,7 +418,7 @@ void pointer_handle_axis(struct input* input, uint32_t axis, double value) {
     struct input_event event[2];
     struct timespec rt;
     unsigned int res, move, n = 0;
-    double fVal = value / 10.0f;
+    double fVal = value / 100.0f;
     double step = 1.0f;
 
     if (ensure_pipe(input, INPUT_POINTER))
@@ -387,15 +433,13 @@ void pointer_handle_axis(struct input* input, uint32_t axis, double value) {
         if (std::abs(input->wheelAccumulatorY) < step)
             return;
         move = (int)(input->wheelAccumulatorY / step);
-        input->wheelAccumulatorY = input->wheelEvtIsDiscrete ? 0 :
-                                     std::fmod(input->wheelAccumulatorY, step);
+        input->wheelAccumulatorY = std::fmod(input->wheelAccumulatorY, step);
     } else {
         input->wheelAccumulatorX += fVal;
         if (std::abs(input->wheelAccumulatorX) < step)
             return;
         move = (int)(input->wheelAccumulatorX / step);
-        input->wheelAccumulatorX = input->wheelEvtIsDiscrete ? 0 :
-                                     std::fmod(input->wheelAccumulatorX, step);
+        input->wheelAccumulatorX = std::fmod(input->wheelAccumulatorX, step);
     }
 
     if (clock_gettime(CLOCK_MONOTONIC, &rt) == -1) {

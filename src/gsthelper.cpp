@@ -50,9 +50,10 @@ static gboolean gst_video_src_event(GstPad *pad, GstObject *parent, GstEvent *ev
             break;
         case GST_NAVIGATION_EVENT_MOUSE_SCROLL:
             if (gst_navigation_event_parse_mouse_scroll_event(event, &x, &y, &delta_x, &delta_y)) {
-                if (delta_x) {
+                if (delta_x != 0.0) {
                     pointer_handle_axis(input, 1, delta_x);
-                } else {
+                }
+                if (delta_y != 0.0) {
                     pointer_handle_axis(input, 0, delta_y);
                 }
                 ret = TRUE;
@@ -60,12 +61,18 @@ static gboolean gst_video_src_event(GstPad *pad, GstObject *parent, GstEvent *ev
             break;
         case GST_NAVIGATION_EVENT_TOUCH_DOWN:
             if (gst_navigation_event_parse_touch_event(event, &id, &x, &y, &pressure)) {
+                if (pressure == 0.0) {
+                    pressure = 50.0; // Default pressure if not specified
+                }
                 touch_handle_down(input, id, x, y, pressure);
                 ret = TRUE;
             }
             break;
         case GST_NAVIGATION_EVENT_TOUCH_MOTION:
             if (gst_navigation_event_parse_touch_event(event, &id, &x, &y, &pressure)) {
+                if (pressure == 0.0) {
+                    pressure = 50.0; // Default pressure if not specified
+                }
                 touch_handle_motion(input, id, x, y, pressure);
                 ret = TRUE;
             }
@@ -150,7 +157,7 @@ int gst_pipeline_init(struct gsthelper *gsthelper, int width, int height, int re
 
     caps = gst_caps_new_simple("video/x-raw",
                                "format", G_TYPE_STRING,
-                               "BGRx",
+                               "RGBx",
                                "width", G_TYPE_INT, width,
                                "height", G_TYPE_INT, height,
                                "framerate", GST_TYPE_FRACTION,
@@ -231,7 +238,7 @@ void gst_output_frame(struct gsthelper *gsthelper, int dmabuf_fd, int width, int
     gst_buffer_append_memory(buf, mem);
     gst_buffer_add_video_meta_full(buf,
                                    GST_VIDEO_FRAME_FLAG_NONE,
-                                   GST_VIDEO_FORMAT_BGRx,
+                                   GST_VIDEO_FORMAT_RGBx,
                                    width,
                                    height,
                                    1,
