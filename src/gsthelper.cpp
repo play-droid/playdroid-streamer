@@ -71,7 +71,7 @@ static gboolean gst_video_src_event(GstPad *pad, GstObject *parent, GstEvent *ev
             }
             break;
         case GST_NAVIGATION_EVENT_TOUCH_UP:
-            if (gst_navigation_event_parse_touch_event(event, &id, &x, &y, &pressure)) {
+            if (gst_navigation_event_parse_touch_up_event(event, &id, &x, &y)) {
                 touch_handle_up(input, id);
                 ret = TRUE;
             }
